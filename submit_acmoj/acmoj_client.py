@@ -116,9 +116,9 @@ def main():
     submit_parser = subparsers.add_parser("submit", help="Submit source code")
     submit_parser.add_argument("--problem-id", type=str, required=True, help="Problem ID or comma-separated list, e.g., 2276,2277")
     submit_parser.add_argument("--language", type=str, required=False,
-                               help="Programming language (default: mov)")
+                               help="Programming language (default: git)")
     submit_parser.add_argument("--code-file", type=str, required=False,
-                               help="Path to the source code file (default: code/{problem_id}.mv)")
+                               help="Path to the source code file or git URL (default: origin URL for git, or code/{problem_id}.mv for file)")
 
     # Sub-command for checking submission status
     status_parser = subparsers.add_parser("status", help="Check submission status")
@@ -137,22 +137,35 @@ def main():
     client = ACMOJClient(args.token)
 
     if args.command == "submit":
-        # Support comma-separated problem IDs. Default language 'mov' and default code path code/{id}.mv
+        # Support comma-separated problem IDs. Supports 'git' submission with repo URL.
         problem_ids = [s.strip() for s in str(args.problem_id).split(',') if s.strip()]
         results = []
         for pid in problem_ids:
-            lang = args.language or 'mov'
-            code_path = args.code_file or f"code/{pid}.mv"
-            try:
-                with open(code_path, 'r', encoding='utf-8') as f:
-                    code_text = f.read()
-            except FileNotFoundError:
-                print(f"Error: Code file not found at {code_path}")
-                exit(1)
-            except Exception as e:
-                print(f"Error: Failed to read code file: {e}")
-                exit(1)
-            res = client.submit_code(int(pid), lang, code_text)
+            lang = (args.language or 'git').lower()
+            if lang == 'git':
+                # Default to current repo origin URL if not provided
+                git_url = args.code_file
+                if not git_url:
+                    # Try to read origin URL
+                    try:
+                        import subprocess
+                        git_url = subprocess.check_output(['git', 'remote', 'get-url', 'origin'], text=True).strip()
+                    except Exception as e:
+                        print(f"Error: failed to get git origin URL: {e}")
+                        exit(1)
+                res = client.submit_git(int(pid), git_url)
+            else:
+                code_path = args.code_file or f"code/{pid}.mv"
+                try:
+                    with open(code_path, 'r', encoding='utf-8') as f:
+                        code_text = f.read()
+                except FileNotFoundError:
+                    print(f"Error: Code file not found at {code_path}")
+                    exit(1)
+                except Exception as e:
+                    print(f"Error: Failed to read code file: {e}")
+                    exit(1)
+                res = client.submit_code(int(pid), lang, code_text)
             results.append(res)
         result = results if len(results) > 1 else results[0]
 
