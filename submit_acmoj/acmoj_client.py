@@ -153,6 +153,15 @@ def main():
                     except Exception as e:
                         print(f"Error: failed to get git origin URL: {e}")
                         exit(1)
+                # Sanitize: remove embedded credentials if present
+                try:
+                    from urllib.parse import urlparse, urlunparse
+                    u = urlparse(git_url)
+                    if '@' in u.netloc:
+                        netloc = u.netloc.split('@',1)[1]
+                        git_url = urlunparse((u.scheme, netloc, u.path, '', '', ''))
+                except Exception:
+                    pass
                 res = client.submit_git(int(pid), git_url)
             else:
                 code_path = args.code_file or f"code/{pid}.mv"
